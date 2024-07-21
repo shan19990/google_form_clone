@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Responses</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f1f1f1;
+            padding-top: 20px;
+        }
+        .container {
+            max-width: 800px;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+        .response-item {
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 15px;
+        }
+        .top-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .bottom-buttons {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .response-list {
+            list-style-type: none;
+            padding-left: 0;
+        }
+        .response-list li {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-buttons">
+            <button class="btn btn-outline-secondary" onclick="window.location.href='/'">Back</button>
+            <button class="btn btn-outline-danger" onclick="logout()">Logout</button>
+        </div>
+        <h2 class="text-center">Form Responses</h2>
+        <div id="responses-container"></div>
+        <div class="bottom-buttons">
+            <button class="btn btn-success" onclick="exportResponses()">Export to Excel</button>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const formId = urlParams.get('id');
+
+        // Check for access token and redirect if not found
+        document.addEventListener('DOMContentLoaded', function() {
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) {
+                window.location.href = '/accounts/login/';
+            } else {
+                fetchResponses();
+            }
+        });
+
+        async function fetchResponses() {
+            const responsesContainer = document.getElementById('responses-container');
+            try {
+                const response = await fetch(`http://127.0.0.1:3000/forms/fetch/${formId}/`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorMessage = await response.text();  // Get error response text
+                    throw new Error(`Network response was not ok: ${errorMessage}`);
+                }
+
+                const form = await response.json();
+                console.log('Fetched form data:', form);
+
+                if (!form.responses || form.responses.length === 0) {
+                    responsesContainer.innerHTML = `<div class="alert alert-warning">No responses found for this form.</div>`;
+                    return;
+                }
+
+                // Create a map of question IDs to question texts
+                const questionMap = {};
+                form.metadata.questions.forEach((question, index) => {
+                    const questionId = `q${index + 1}`;
+                    questionMap[questionId] = question.text;
+                });
+
+                form.responses.forEach(response => {
+                    console.log('Fetched response:', response);
+                    if (!response.response_data || typeof response.response_data !== 'object') {
+                        console.error('Invalid response data:', response.response_data);
+                        throw new Error('Invalid response data structure');
+                    }
+
+                    const responseElement = document.createElement('div');
+                    responseElement.classList.add('response-item');
+                    const responseList = document.createElement('ul');
+                    responseList.classList.add('response-list');
+                    
+                    Object.entries(response.response_data).forEach(([questionId, answer]) => {
+                        const listItem = document.createElement('li');
+                        if (Array.isArray(answer)) {
+                            listItem.innerHTML = `<strong>${questionMap[questionId] || questionId}:</strong> ${answer.join(', ')}`;
+                        } else {
+                            listItem.innerHTML = `<strong>${questionMap[questionId] || questionId}:</strong> ${answer}`;
+                        }
+                        responseList.appendChild(listItem);
+                    });
+
+                    responseElement.innerHTML = `<p><strong>Response ID:</strong> ${response.id}</p>`;
+                    responseElement.appendChild(responseList);
+                    responsesContainer.appendChild(responseElement);
+                });
+
+            } catch (error) {
+                console.error('Error fetching responses:', error);
+                responsesContainer.innerHTML = `<div class="alert alert-danger">Error fetching responses: ${error.message}</div>`;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/accounts/login/';
+        }
+
+        function exportResponses() {
+            window.location.href = `http://127.0.0.1:3000/forms/form/${formId}/export/`;
+        }
+    </script>
+</body>
+</html>

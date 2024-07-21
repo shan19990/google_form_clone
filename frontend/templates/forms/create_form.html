@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Form</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.8.1/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #fafafa;
+            padding-top: 20px;
+            font-family: 'Roboto', sans-serif;
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .container {
+            width: 800px;
+            max-height: 90vh;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .form-title {
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+        .form-subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        .form-content {
+            overflow-y: auto;
+            flex: 1;
+            padding-right: 10px; /* for avoiding scroll bar overlap */
+        }
+        .questions-container {
+            margin-bottom: 20px;
+        }
+        .question-container {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        .question-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .question-header h5 {
+            margin: 0;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        .choice-input {
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }
+        .btn-secondary {
+            margin-right: 10px;
+        }
+        .alert {
+            display: none;
+        }
+        .btn-primary {
+            background-color: #4285f4;
+            border: none;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .btn-primary:hover {
+            background-color: #3367d6;
+        }
+        .top-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .question-type-dropdown {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="top-buttons">
+            <button class="btn btn-outline-secondary" onclick="window.location.href='/'">Back</button>
+            <button class="btn btn-outline-danger" onclick="logout()">Logout</button>
+        </div>
+        <h2 class="form-title">Add Form</h2>
+        <div class="form-content">
+            <form id="edit-form">
+                <div class="form-group">
+                    <label for="form-title">Form Title</label>
+                    <input type="text" class="form-control" id="form-title" name="title" placeholder="Enter form title" required>
+                </div>
+                <div class="form-group">
+                    <label for="expire-date">Expiration Date</label>
+                    <input type="date" class="form-control" id="expire-date" name="expire_at" required>
+                </div>
+                <div class="questions-container" id="questions-container"></div>
+                <div class="question-type-dropdown">
+                    <select class="form-control" id="question-type">
+                        <option value="text">Short Answer</option>
+                        <option value="paragraph">Paragraph</option>
+                        <option value="choice">Multiple Choice</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="date">Date</option>
+                    </select>
+                    <button type="button" class="add-question-button" onclick="addQuestion()">
+                        <i class="bi bi-plus-lg"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" form="edit-form">Save Changes</button>
+        <div id="message" class="alert alert-danger mt-3"></div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        // Check for access token and redirect if not found
+        document.addEventListener('DOMContentLoaded', function() {
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) {
+                window.location.href = '/accounts/login/';
+            }
+        });
+
+        let questionCount = 0;
+
+        function addQuestion() {
+            const questionType = document.getElementById('question-type').value;
+            switch (questionType) {
+                case 'text':
+                    addTextQuestion();
+                    break;
+                case 'paragraph':
+                    addParagraphQuestion();
+                    break;
+                case 'choice':
+                    addChoiceQuestion();
+                    break;
+                case 'checkbox':
+                    addCheckboxQuestion();
+                    break;
+                case 'date':
+                    addDateQuestion();
+                    break;
+                default:
+                    addTextQuestion();
+                    break;
+            }
+        }
+
+        function addTextQuestion(question = {}) {
+            const questionHtml = `
+                <div class="question-container" id="question-${questionCount}">
+                    <div class="question-header">
+                        <h5>Short Answer Question ${questionCount}</h5>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeQuestion(${questionCount})">Remove</button>
+                    </div>
+                    <input type="hidden" name="questions[${questionCount}][type]" value="text">
+                    <div class="form-group">
+                        <label for="question-text-${questionCount}">Question</label>
+                        <input type="text" class="form-control" id="question-text-${questionCount}" name="questions[${questionCount}][text]" placeholder="Enter question" required value="${question.text || ''}">
+                    </div>
+                </div>
+            `;
+            document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+            questionCount++;
+        }
+
+        function addParagraphQuestion(question = {}) {
+            const questionHtml = `
+                <div class="question-container" id="question-${questionCount}">
+                    <div class="question-header">
+                        <h5>Paragraph Question ${questionCount}</h5>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeQuestion(${questionCount})">Remove</button>
+                    </div>
+                    <input type="hidden" name="questions[${questionCount}][type]" value="paragraph">
+                    <div class="form-group">
+                        <label for="question-paragraph-${questionCount}">Question</label>
+                        <textarea class="form-control" id="question-paragraph-${questionCount}" name="questions[${questionCount}][text]" placeholder="Enter question" required>${question.text || ''}</textarea>
+                    </div>
+                </div>
+            `;
+            document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+            questionCount++;
+        }
+
+        function addChoiceQuestion(question = {}) {
+            const questionHtml = `
+                <div class="question-container" id="question-${questionCount}">
+                    <div class="question-header">
+                        <h5>Multiple Choice Question ${questionCount}</h5>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeQuestion(${questionCount})">Remove</button>
+                    </div>
+                    <input type="hidden" name="questions[${questionCount}][type]" value="choice">
+                    <div class="form-group">
+                        <label for="question-text-${questionCount}">Question</label>
+                        <input type="text" class="form-control" id="question-text-${questionCount}" name="questions[${questionCount}][text]" placeholder="Enter question" required value="${question.text || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Choices</label>
+                        <div id="choices-container-${questionCount}">
+                            ${(question.choices || []).map((choice, choiceIndex) => `
+                                <div class="choice-input" id="choice-${questionCount}-${choiceIndex}">
+                                    <input type="text" class="form-control" name="questions[${questionCount}][choices][${choiceIndex}]" placeholder="Enter choice" required value="${choice}">
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(${questionCount}, ${choiceIndex})">Remove</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addChoice(${questionCount})">Add Choice</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+            questionCount++;
+        }
+
+        function addCheckboxQuestion(question = {}) {
+            const questionHtml = `
+                <div class="question-container" id="question-${questionCount}">
+                    <div class="question-header">
+                        <h5>Checkbox Question ${questionCount}</h5>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeQuestion(${questionCount})">Remove</button>
+                    </div>
+                    <input type="hidden" name="questions[${questionCount}][type]" value="checkbox">
+                    <div class="form-group">
+                        <label for="question-text-${questionCount}">Question</label>
+                        <input type="text" class="form-control" id="question-text-${questionCount}" name="questions[${questionCount}][text]" placeholder="Enter question" required value="${question.text || ''}">
+                    </div>
+                    <div class="form-group">
+                        <label>Choices</label>
+                        <div id="choices-container-${questionCount}">
+                            ${(question.choices || []).map((choice, choiceIndex) => `
+                                <div class="choice-input" id="choice-${questionCount}-${choiceIndex}">
+                                    <input type="text" class="form-control" name="questions[${questionCount}][choices][${choiceIndex}]" placeholder="Enter choice" required value="${choice}">
+                                    <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(${questionCount}, ${choiceIndex})">Remove</button>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button type="button" class="btn btn-secondary btn-sm" onclick="addChoice(${questionCount})">Add Choice</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+            questionCount++;
+        }
+
+        function addDateQuestion(question = {}) {
+            const questionHtml = `
+                <div class="question-container" id="question-${questionCount}">
+                    <div class="question-header">
+                        <h5>Date Question ${questionCount}</h5>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeQuestion(${questionCount})">Remove</button>
+                    </div>
+                    <input type="hidden" name="questions[${questionCount}][type]" value="date">
+                    <div class="form-group">
+                        <label for="question-date-${questionCount}">Question</label>
+                        <input type="text" class="form-control" id="question-date-${questionCount}" name="questions[${questionCount}][text]" placeholder="Enter question" required value="${question.text || ''}">
+                    </div>
+                </div>
+            `;
+            document.getElementById('questions-container').insertAdjacentHTML('beforeend', questionHtml);
+            questionCount++;
+        }
+
+        function addChoice(questionId) {
+            const choiceCount = document.querySelectorAll(`#choices-container-${questionId} .choice-input`).length;
+            const choiceHtml = `
+                <div class="choice-input" id="choice-${questionId}-${choiceCount}">
+                    <input type="text" class="form-control" name="questions[${questionId}][choice${choiceCount}]" placeholder="Enter choice" required>
+                    <button type="button" class="btn btn-danger btn-sm" onclick="removeChoice(${questionId}, ${choiceCount})">Remove</button>
+                </div>
+            `;
+            document.getElementById(`choices-container-${questionId}`).insertAdjacentHTML('beforeend', choiceHtml);
+        }
+
+        function removeChoice(questionId, choiceId) {
+            document.getElementById(`choice-${questionId}-${choiceId}`).remove();
+        }
+
+        function removeQuestion(questionId) {
+            document.getElementById(`question-${questionId}`).remove();
+        }
+
+        document.getElementById('edit-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            const formTitle = document.getElementById('form-title').value;
+            const expireDate = document.getElementById('expire-date').value;
+
+            const questions = [];
+            document.querySelectorAll('.question-container').forEach((questionContainer, index) => {
+                const questionType = questionContainer.querySelector('input[name^="questions["][name$="[type]"]').value;
+                const questionText = questionContainer.querySelector('input[name^="questions["][name$="[text]"], textarea[name^="questions["][name$="[text]"], input[type="file"][name^="questions["][name$="[text]"]').value;
+
+                if (questionType === 'text') {
+                    questions.push({
+                        type: 'text',
+                        text: questionText
+                    });
+                } else if (questionType === 'paragraph') {
+                    questions.push({
+                        type: 'paragraph',
+                        text: questionText
+                    });
+                } else if (questionType === 'choice' || questionType === 'checkbox') {
+                    const choices = [];
+                    questionContainer.querySelectorAll('.choice-input input[type="text"]').forEach(choiceInput => {
+                        choices.push(choiceInput.value);
+                    });
+                    questions.push({
+                        type: questionType,
+                        text: questionText,
+                        choices: choices
+                    });
+                } else if (questionType === 'date') {
+                    questions.push({
+                        type: 'date',
+                        text: questionText
+                    });
+                }
+            });
+
+            const formData = {
+                title: formTitle,
+                expire_at: expireDate,
+                metadata: {
+                    questions: questions
+                }
+            };
+
+            try {
+                const response = await fetch('http://127.0.0.1:3000/forms/create/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    const errorMessage = await response.text();  // Get error response text
+                    throw new Error(`Network response was not ok: ${errorMessage}`);
+                }
+
+                const data = await response.json();
+                console.log('Form created successfully:', data);
+
+                // Redirect to a success page or show a success message
+                window.location.href = '/';
+
+            } catch (error) {
+                console.error('Error:', error);
+                const messageDiv = document.getElementById('message');
+                messageDiv.textContent = 'Form creation failed: ' + error.message;
+                messageDiv.classList.remove('d-none');
+            }
+        });
+
+        function logout() {
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('refresh_token');
+            window.location.href = '/accounts/login/';
+        }
+    </script>
+</body>
+</html>

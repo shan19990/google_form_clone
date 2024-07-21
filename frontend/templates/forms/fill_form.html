@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assessment</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f1f1f1;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 800px;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+        }
+        .header-image {
+            width: 100%;
+            height: 150px;
+            background: url('/mnt/data/image.png') no-repeat center center;
+            background-size: cover;
+            border-radius: 8px 8px 0 0;
+        }
+        .form-title {
+            margin-top: 20px;
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+        }
+        .form-subtitle {
+            margin-bottom: 30px;
+            text-align: center;
+            color: #888;
+        }
+        .form-section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+        .form-label {
+            font-weight: bold;
+            margin-bottom: 10px;
+            display: block;
+        }
+        .btn-primary {
+            background-color: #4285f4;
+            border: none;
+            border-radius: 4px;
+            margin-top: 20px;
+            width: 100%;
+        }
+        .btn-primary:hover {
+            background-color: #3367d6;
+        }
+        .top-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .top-buttons button {
+            border: none;
+            background: none;
+            font-size: 16px;
+            color: #4285f4;
+            cursor: pointer;
+        }
+        .top-buttons button:hover {
+            text-decoration: underline;
+        }
+        .form-check {
+            margin-bottom: 10px;
+        }
+        .alert {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" data-decrypted-id="{{ decrypted_id }}" data-encryption-key="{{ encryption_key }}">
+        <div class="header-image"></div>
+        <h2 id="form-title" class="form-title">Assessment</h2>
+        <div class="form-subtitle">
+            <span id="user-email"></span> | <a href="#" id="switch-account">Switch accounts</a>
+        </div>
+        <form id="fill-form">
+            <div id="questions-container"></div>
+            <button type="submit" class="btn btn-primary">Submit</button>
+        </form>
+        <div id="message" class="alert alert-danger mt-3"></div>
+    </div>
+
+    <!-- Bootstrap JS and dependencies -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <!-- Custom JS -->
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const container = document.querySelector('.container');
+            const decryptedId = container.getAttribute('data-decrypted-id');
+            const accessToken = localStorage.getItem('access_token');
+            const userEmail = localStorage.getItem('user_email') || 'Guest';
+
+            document.getElementById('user-email').innerText = userEmail;
+
+            try {
+                const response = await fetch(`http://127.0.0.1:3000/forms/fetch/${decryptedId}/`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    }
+                });
+
+                if (!response.ok) {
+                    const errorMessage = await response.text();
+                    throw new Error(`Network response was not ok: ${errorMessage}`);
+                }
+
+                const form = await response.json();
+                console.log("Fetched form data:", form);
+
+                if (!form) {
+                    throw new Error("No Form matches the given query.");
+                }
+
+                const currentDate = new Date();
+                const expiryDate = form.expire_at ? new Date(form.expire_at.replace(/-/g, "/")) : null;
+
+                console.log("Current date:", currentDate);
+                console.log("Form expiry date:", expiryDate);
+
+                if (!expiryDate || isNaN(expiryDate)) {
+                    throw new Error("Invalid expiry date format.");
+                }
+
+                if (currentDate > expiryDate) {
+                    throw new Error("The form has been closed.");
+                }
+
+                document.getElementById('form-title').innerText = form.title;
+
+                const questionsContainer = document.getElementById('questions-container');
+                form.metadata.questions.forEach((question, index) => {
+                    let questionHtml = `<div class="form-section"><label class="form-label">${question.text} *</label>`;
+                    if (question.type === 'text') {
+                        questionHtml += `<input type="text" class="form-control" name="q${index + 1}" placeholder="Enter your answer" required>`;
+                    } else if (question.type === 'paragraph') {
+                        questionHtml += `<textarea class="form-control" name="q${index + 1}" placeholder="Enter your answer" required></textarea>`;
+                    } else if (question.type === 'choice') {
+                        question.choices.forEach((choice, choiceIndex) => {
+                            questionHtml += `<div class="form-check"><input type="radio" class="form-check-input" name="q${index + 1}" id="choice${index + 1}-${choiceIndex}" value="${choice}" required><label class="form-check-label" for="choice${index + 1}-${choiceIndex}">${choice}</label></div>`;
+                        });
+                    } else if (question.type === 'checkbox') {
+                        question.choices.forEach((choice, choiceIndex) => {
+                            questionHtml += `<div class="form-check"><input type="checkbox" class="form-check-input" name="q${index + 1}" id="choice${index + 1}-${choiceIndex}" value="${choice}"><label class="form-check-label" for="choice${index + 1}-${choiceIndex}">${choice}</label></div>`;
+                        });
+                    } else if (question.type === 'date') {
+                        questionHtml += `<input type="date" class="form-control" name="q${index + 1}" required>`;
+                    }
+                    questionHtml += `</div>`;
+                    questionsContainer.insertAdjacentHTML('beforeend', questionHtml);
+                });
+
+            } catch (error) {
+                console.error('Error fetching form:', error);
+                const messageDiv = document.getElementById('message');
+                if (error.message.includes("No Form matches the given query")) {
+                    messageDiv.textContent = 'The form does not exist.';
+                } else if (error.message.includes("The form has been closed")) {
+                    messageDiv.textContent = 'The form has been closed.';
+                } else {
+                    messageDiv.textContent = 'Error: ' + error.message;
+                }
+                messageDiv.style.display = 'block';
+            }
+        });
+
+        document.getElementById('fill-form').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const container = document.querySelector('.container');
+            const decryptedId = container.getAttribute('data-decrypted-id'); // Ensure decryptedId is defined here
+            const accessToken = localStorage.getItem('access_token');
+            if (!accessToken) {
+                alert('You must be logged in to submit the form.');
+                return;
+            }
+
+            const formData = new FormData(event.target);
+            const responseData = {};
+
+            for (let [key, value] of formData.entries()) {
+                if (responseData[key]) {
+                    if (Array.isArray(responseData[key])) {
+                        responseData[key].push(value);
+                    } else {
+                        responseData[key] = [responseData[key], value];
+                    }
+                } else {
+                    responseData[key] = value;
+                }
+            }
+
+            // Flatten array responses
+            for (let key in responseData) {
+                if (Array.isArray(responseData[key])) {
+                    responseData[key] = responseData[key].join(', ');
+                }
+            }
+
+            console.log("Submitting response data:", responseData);
+
+            try {
+                const response = await fetch(`http://127.0.0.1:3000/forms/response/create/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`
+                    },
+                    body: JSON.stringify({ form: decryptedId, response_data: responseData })
+                });
+
+                if (!response.ok) {
+                    const errorMessage = await response.text();
+                    throw new Error(`Network response was not ok: ${errorMessage}`);
+                }
+
+                alert('Response submitted successfully!');
+                window.location.href = '/thankyou/';
+
+            } catch (error) {
+                console.error('Error submitting response:', error);
+                const messageDiv = document.getElementById('message');
+                messageDiv.textContent = 'Error submitting response: ' + error.message;
+                messageDiv.style.display = 'block';
+            }
+        });
+
+
+        document.getElementById('switch-account').addEventListener('click', function(event) {
+            event.preventDefault();
+            localStorage.removeItem('access_token');
+            localStorage.removeItem('user_email');
+            window.location.href = '/accounts/login/';
+        });
+    </script>
+
+</body>
+</html>
